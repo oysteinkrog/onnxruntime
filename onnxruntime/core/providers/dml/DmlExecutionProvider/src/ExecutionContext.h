@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <mutex>
 #include "GpuEvent.h"
 #include "ICommandRecorder.h"
 #include "DmlCommandRecorder.h"
@@ -90,6 +91,7 @@ namespace Dml
         bool IsClosed() const { return m_closed; }
 
     private:
+        mutable std::mutex m_mutex;  // Serializes all GPU work submission and state access
         Microsoft::WRL::ComPtr<ID3D12Device> m_d3dDevice;
 
         void SetCommandRecorder(ICommandRecorder* newRecorder);
