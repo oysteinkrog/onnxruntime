@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // Licensed under the MIT License.
+#include <cstdio>
+#pragma warning(disable : 4996)  // DIAG: disable fopen deprecation warning
 #include <fstream>
 #include <list>
 #include <thread>
@@ -957,6 +959,13 @@ NvExecutionProvider::NvExecutionProvider(const NvExecutionProviderInfo& info)
                                    narrow<OrtDevice::DeviceId>(info.device_id))},
       info_(info),
       device_id_(info.device_id) {
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] *** NvExecutionProvider constructor called! device_id=%d ***\n", info.device_id);
+      fclose(diagf);
+    }
+  }
   InitProviderOrtApi();
 
   // TODO(maximlianm) remove this since we should be able to compile an AOT context file without GPU
@@ -1074,8 +1083,25 @@ NvExecutionProvider::NvExecutionProvider(const NvExecutionProviderInfo& info)
    *
    */
   bool status = true;
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] === NvTensorRTRTX EP constructor ===\n");
+      fprintf(diagf, "[DIAG] profile_min_shapes raw='%s'\n", profile_min_shapes.c_str());
+      fprintf(diagf, "[DIAG] profile_max_shapes raw='%s'\n", profile_max_shapes.c_str());
+      fprintf(diagf, "[DIAG] profile_opt_shapes raw='%s'\n", profile_opt_shapes.c_str());
+      fclose(diagf);
+    }
+  }
+  fprintf(stderr, "[DIAG] profile_min_shapes raw='%s'\n", profile_min_shapes.c_str());
+  fprintf(stderr, "[DIAG] profile_max_shapes raw='%s'\n", profile_max_shapes.c_str());
+  fprintf(stderr, "[DIAG] profile_opt_shapes raw='%s'\n", profile_opt_shapes.c_str());
   if (status) {
     status = ParseProfileShapes(profile_min_shapes, profile_min_shapes_);
+    fprintf(stderr, "[DIAG] ParseProfileShapes(min) returned %d, profile_min_shapes_ has %zu keys\n", (int)status, profile_min_shapes_.size());
+    for (const auto& kv : profile_min_shapes_) {
+      fprintf(stderr, "[DIAG]   min key='%s' profiles=%zu\n", kv.first.c_str(), kv.second.size());
+    }
     if (!status) {
       profile_min_shapes_.clear();
       LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP] The format of provider option 'trt_profile_min_shapes' is wrong, please follow the format of 'input1:dim1xdimd2...,input2:dim1xdim2...,...'";
@@ -1084,6 +1110,7 @@ NvExecutionProvider::NvExecutionProvider(const NvExecutionProviderInfo& info)
 
   if (status) {
     status = ParseProfileShapes(profile_max_shapes, profile_max_shapes_);
+    fprintf(stderr, "[DIAG] ParseProfileShapes(max) returned %d, profile_max_shapes_ has %zu keys\n", (int)status, profile_max_shapes_.size());
     if (!status) {
       profile_max_shapes_.clear();
       LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP] The format of provider option 'trt_profile_max_shapes' is wrong, please follow the format of 'input1:dim1xdimd2...,input2:dim1xdim2...,...'";
@@ -1092,6 +1119,7 @@ NvExecutionProvider::NvExecutionProvider(const NvExecutionProviderInfo& info)
 
   if (status) {
     status = ParseProfileShapes(profile_opt_shapes, profile_opt_shapes_);
+    fprintf(stderr, "[DIAG] ParseProfileShapes(opt) returned %d, profile_opt_shapes_ has %zu keys\n", (int)status, profile_opt_shapes_.size());
     if (!status) {
       profile_opt_shapes_.clear();
       LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP] The format of provider option 'trt_profile_opt_shapes' is wrong, please follow the format of 'input1:dim1xdimd2...,input2:dim1xdim2...,...'";
@@ -1100,6 +1128,7 @@ NvExecutionProvider::NvExecutionProvider(const NvExecutionProviderInfo& info)
 
   if (status) {
     status = ValidateProfileShapes(profile_min_shapes_, profile_max_shapes_, profile_opt_shapes_);
+    fprintf(stderr, "[DIAG] ValidateProfileShapes returned %d\n", (int)status);
     if (!status) {
       LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP] Profile shapes validation failed. Make sure the provider options 'trt_profile_min_shapes', 'trt_profile_max_shapes' and 'trt_profile_opt_shapes' have same input name and number of profile.";
       LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP] TRT EP will implicitly create optimization profiles based on input tensor for you.";
@@ -2797,10 +2826,36 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
   ShapeRangesMap input_implicit_shape_ranges;
 
   bool has_dynamic_shape = false;  // True if input tensor has dynamic shape and no explicit profile is specified, otherwise false
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] *** CreateNodeComputeInfoFromGraph: profile_min empty=%d, max empty=%d, opt empty=%d, num_inputs=%d\n",
+              (int)profile_min_shapes_.empty(), (int)profile_max_shapes_.empty(), (int)profile_opt_shapes_.empty(), num_inputs);
+      for (const auto& kv : profile_min_shapes_) {
+        fprintf(diagf, "[DIAG]   profile_min key='%s'\n", kv.first.c_str());
+      }
+      fclose(diagf);
+    }
+  }
+  fprintf(stderr, "[DIAG] *** CreateNodeComputeInfoFromGraph: profile_min_shapes_ empty=%d, max empty=%d, opt empty=%d, num_inputs=%d\n",
+          (int)profile_min_shapes_.empty(), (int)profile_max_shapes_.empty(), (int)profile_opt_shapes_.empty(), num_inputs);
   if ((!profile_min_shapes_.empty()) && (!profile_max_shapes_.empty()) && (!profile_opt_shapes_.empty())) {
     has_explicit_profile = true;
     has_dynamic_shape = true;
     num_profiles = GetNumProfiles(profile_min_shapes_);
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] Explicit profile detected. num_profiles=" << num_profiles
+                          << ", profile_min_shapes_ keys:";
+    for (const auto& kv : profile_min_shapes_) {
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   profile key='" << kv.first << "' num_shapes=" << kv.second.size();
+      for (size_t si = 0; si < kv.second.size(); si++) {
+        std::ostringstream dims_str;
+        for (size_t di = 0; di < kv.second[si].size(); di++) {
+          if (di > 0) dims_str << "x";
+          dims_str << kv.second[si][di];
+        }
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]     shape[" << si << "]=" << dims_str.str();
+      }
+    }
     for (int i = 0; i < num_profiles; i++) {
       trt_profiles.push_back(trt_builder->createOptimizationProfile());
     }
@@ -2819,20 +2874,46 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
     }
   }
   if (has_dynamic_shape) {
+    fprintf(stderr, "[DIAG] has_dynamic_shape=true, num_inputs=%d, has_explicit_profile=%d, trt_profiles.size()=%zu\n",
+            num_inputs, (int)has_explicit_profile, trt_profiles.size());
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] has_dynamic_shape=true, num_inputs=" << num_inputs
+                          << ", has_explicit_profile=" << has_explicit_profile
+                          << ", trt_profiles.size()=" << trt_profiles.size();
     // Iterate all input tensors to check dynamic shape
     for (unsigned int i = 0, end = num_inputs; i < end; ++i) {
       auto input = trt_network->getInput(i);
       const std::string& input_name = input->getName();
       nvinfer1::Dims dims = input->getDimensions();
+      fprintf(stderr, "[DIAG] TRT input[%d] name='%s' ndims=%d\n", i, input_name.c_str(), dims.nbDims);
+
+      std::ostringstream dims_str;
+      for (int d = 0; d < dims.nbDims; d++) {
+        if (d > 0) dims_str << "x";
+        dims_str << dims.d[d];
+      }
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] TRT input[" << i << "] name='" << input_name
+                            << "' dims=[" << dims_str.str() << "] isDynamic=" << checkTrtTensorIsDynamic(input);
 
       // Apply explicit optimization profiles provided by user
       bool apply_profile = false;
       bool tensor_has_profile = profile_min_shapes_.find(input_name) != profile_min_shapes_.end() &&
                                 profile_opt_shapes_.find(input_name) != profile_opt_shapes_.end() &&
                                 profile_max_shapes_.find(input_name) != profile_max_shapes_.end();
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   tensor_has_profile=" << tensor_has_profile
+                            << " (has_explicit_profile=" << has_explicit_profile << ")";
+      if (!tensor_has_profile && has_explicit_profile) {
+        // Log the mismatch to help debug name mapping issues
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   MISMATCH: TRT input name '" << input_name
+                              << "' not found in profile_min_shapes_. Available profile keys:";
+        for (const auto& kv : profile_min_shapes_) {
+          LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]     profile key='" << kv.first << "'";
+        }
+      }
       if (has_explicit_profile && tensor_has_profile) {
         apply_profile = ApplyProfileShapesFromProviderOptions(trt_profiles, input, profile_min_shapes_, profile_max_shapes_, profile_opt_shapes_, input_explicit_shape_ranges, cuda_graph_enable_);
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   ApplyProfileShapesFromProviderOptions returned " << apply_profile;
       } else {
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   Falling into IMPLICIT profile path for '" << input_name << "'";
         LOGS_DEFAULT(INFO) << "[NvTensorRTRTX EP] Creating implicit profile for tensor " << input_name;
         profile_min_shapes_[input_name] = std::vector<std::vector<int64_t>>{{}};
         profile_min_shapes_[input_name][0].resize(dims.nbDims);
@@ -2877,13 +2958,32 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
     if (has_explicit_profile || has_implicit_profile) {
       // TRT EP has a constraint here.
       // Users need to provide all the dynamic shape inputs with associated profiles if they want to explicitly specify profiles through provider options.
-      for (auto trt_profile : trt_profiles) {
-        trt_config->addOptimizationProfile(trt_profile);
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] Adding " << trt_profiles.size() << " optimization profile(s) to TRT config"
+                            << " (has_explicit_profile=" << has_explicit_profile << ", has_implicit_profile=" << has_implicit_profile << ")";
+      for (size_t pi = 0; pi < trt_profiles.size(); pi++) {
+        auto result = trt_config->addOptimizationProfile(trt_profiles[pi]);
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   addOptimizationProfile[" << pi << "] returned index=" << result;
       }
     } else {
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] FAILURE: No explicit or implicit profiles for dynamic inputs!";
       return ORT_MAKE_STATUS(ONNXRUNTIME, EP_FAIL, "No explicit or implicit shapes were provided for dynamic shape inputs.");
       ;
     }
+  } else {
+    // TRT-RTX requires at least one optimization profile even for fixed-shape models.
+    // Unlike standard TRT, TRT-RTX engines always expect a profile to be set on the
+    // execution context. Without this, createExecutionContext/setOptimizationProfileAsync
+    // will fail with "getNbOptimizationProfiles: Assertion result >= 1 failed".
+    auto fixed_profile = trt_builder->createOptimizationProfile();
+    for (unsigned int i = 0, end = num_inputs; i < end; ++i) {
+      auto input = trt_network->getInput(i);
+      const std::string& input_name = input->getName();
+      nvinfer1::Dims dims = input->getDimensions();
+      fixed_profile->setDimensions(input_name.c_str(), nvinfer1::OptProfileSelector::kMIN, dims);
+      fixed_profile->setDimensions(input_name.c_str(), nvinfer1::OptProfileSelector::kOPT, dims);
+      fixed_profile->setDimensions(input_name.c_str(), nvinfer1::OptProfileSelector::kMAX, dims);
+    }
+    trt_config->addOptimizationProfile(fixed_profile);
   }
 
   // enable sparse weights
@@ -2927,7 +3027,23 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
     if (detailed_build_log_) {
       engine_build_start = std::chrono::steady_clock::now();
     }
+    {
+      FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+      if (diagf) {
+        fprintf(diagf, "[DIAG] About to buildSerializedNetwork. config nbProfiles=%d\n",
+                trt_config->getNbOptimizationProfiles());
+        fclose(diagf);
+      }
+    }
     std::unique_ptr<nvinfer1::IHostMemory> serialized_engine{trt_builder->buildSerializedNetwork(*trt_network, *trt_config)};
+    {
+      FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+      if (diagf) {
+        fprintf(diagf, "[DIAG] buildSerializedNetwork returned %p (size=%zu)\n",
+                (void*)serialized_engine.get(), serialized_engine ? serialized_engine->size() : 0);
+        fclose(diagf);
+      }
+    }
     if (serialized_engine == nullptr) {
       return ORT_MAKE_STATUS(ONNXRUNTIME, EP_FAIL,
                              "NvTensorRTRTX EP failed to create engine from network for fused node: " + fused_node.Name());
@@ -2962,7 +3078,10 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
                             << "Please upgrade to TRT RTX >= 1.3 to use RTX Graph capture feature for optimal CUDA graph performance.";
 #endif
     }
-    trt_runtime_config->setExecutionContextAllocationStrategy(nvinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED);
+    // Use kON_PROFILE_CHANGE instead of kUSER_MANAGED to avoid TRT-RTX crash where
+    // createExecutionContext(IRuntimeConfig*) calls getDeviceMemorySizeForProfileV2()
+    // with an uninitialized profile index when using kUSER_MANAGED.
+    trt_runtime_config->setExecutionContextAllocationStrategy(nvinfer1::ExecutionContextAllocationStrategy::kON_PROFILE_CHANGE);
     if (!runtime_cache_.empty()) {
       runtime_cache_file = (runtime_cache_ / fused_node.Name()).string();
       trt_runtime_cache = std::unique_ptr<nvinfer1::IRuntimeCache>(trt_runtime_config->createRuntimeCache());
@@ -3033,17 +3152,47 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
   }
 
   // Build context
-  // Note: Creating an execution context from an engine is thread safe per TRT doc
-  // https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#threading
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] About to createExecutionContext(). engine=%p, nbProfiles=%d\n",
+              (void*)trt_engine.get(), trt_engine->getNbOptimizationProfiles());
+      fclose(diagf);
+    }
+  }
   trt_context = tensorrt_ptr::unique_pointer_exec_ctx(
-      trt_engine->createExecutionContext(trt_runtime_config.get()),
+      trt_engine->createExecutionContext(),
       tensorrt_ptr::IExecutionContextDeleter(runtime_cache_file, std::move(trt_runtime_cache)));
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] createExecutionContext() returned %p\n", (void*)trt_context.get());
+      fclose(diagf);
+    }
+  }
   if (!trt_context) {
     return ORT_MAKE_STATUS(ONNXRUNTIME, EP_FAIL,
                            "NvTensorRTRTX EP could not build execution context for fused node: " + fused_node.Name());
   }
 
   bool is_dynamic_shape_context = false;
+
+  // Log input_map (ONNX fused node input names) for comparison with TRT names
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] input_map has %zu entries, num_inputs=%d:\n", input_map.size(), num_inputs);
+      for (const auto& kv : input_map) {
+        fprintf(diagf, "[DIAG]   ONNX input='%s' -> index=%zu\n", kv.first.c_str(), kv.second);
+      }
+      fclose(diagf);
+    }
+  }
+  fprintf(stderr, "[DIAG] input_map (ONNX fused node inputs) has %zu entries:\n", input_map.size());
+  for (const auto& kv : input_map) {
+    fprintf(stderr, "[DIAG]   ONNX input='%s' -> index=%zu\n", kv.first.c_str(), kv.second);
+  }
+
   // Create input to index map
   for (int i = 0; i < num_inputs; ++i) {
     auto input = trt_network->getInput(i);
@@ -3052,20 +3201,49 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
     const auto& iter = input_map.find(input_name);
     if (iter != input_map.end()) {
       input_indexes[input_name] = iter->second;
+      fprintf(stderr, "[DIAG] TRT input[%d] name='%s' -> MATCHED to index=%zu\n", i, input_name.c_str(), iter->second);
+    } else {
+      fprintf(stderr, "[DIAG] TRT input[%d] name='%s' -> NOT FOUND in input_map!\n", i, input_name.c_str());
     }
   }
 
+  {
+    FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+    if (diagf) {
+      fprintf(diagf, "[DIAG] input_indexes: %zu of %d matched. is_dynamic=%d\n",
+              input_indexes.size(), num_inputs, (int)is_dynamic_shape_context);
+      for (int i = 0; i < num_inputs; ++i) {
+        auto inp = trt_network->getInput(i);
+        fprintf(diagf, "[DIAG]   TRT input[%d]='%s' matched=%d\n", i, inp->getName(),
+                (int)(input_indexes.find(inp->getName()) != input_indexes.end()));
+      }
+      fclose(diagf);
+    }
+  }
+  fprintf(stderr, "[DIAG] input_indexes: %zu of %d matched. is_dynamic=%d\n",
+          input_indexes.size(), num_inputs, (int)is_dynamic_shape_context);
+
   // Create output to index and type maps
+  LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] output_map (ONNX fused node outputs) has " << output_map.size() << " entries:";
+  for (const auto& kv : output_map) {
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG]   ONNX output='" << kv.first << "' -> index=" << kv.second;
+  }
   const auto& graph_output = model_proto->graph().output();
   for (int i = 0; i < num_outputs; ++i) {
     const std::string& output_name = trt_network->getOutput(i)->getName();
     const auto& iter = output_map.find(output_name);
     if (iter != output_map.end()) {
       output_indexes[output_name] = iter->second;
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] TRT output[" << i << "] name='" << output_name << "' -> MATCHED to index=" << iter->second;
+    } else {
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] TRT output[" << i << "] name='" << output_name << "' -> NOT FOUND in output_map!";
     }
     const auto& tensor_type = graph_output[i].type().tensor_type();
     output_types[output_name] = tensor_type.elem_type();
   }
+
+  LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] output_indexes populated: " << output_indexes.size() << " of " << num_outputs
+                        << " TRT outputs matched. is_dynamic_shape_context=" << is_dynamic_shape_context;
 
   // Save TRT engine, other TRT objects and input/output info to map
   engines_.emplace(fused_node.Name(), std::move(trt_engine));
@@ -3143,9 +3321,14 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
       stream_ = stream;
     }
 
-    if (multi_profile_enable_ == true) {
-      if (!trt_context->setOptimizationProfileAsync(nv_profile_index_, stream))
-        return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "NvTensorRTRTX EP select an optimization profile for the current context failed");
+    // TRT-RTX always creates at least one optimization profile. We must set the active
+    // profile on the execution context before querying device memory or running inference.
+    // Without this, getDeviceMemorySizeV2() internally calls getDeviceMemorySizeForProfileV2()
+    // with an uninitialized profile index, causing a crash.
+    {
+      int profile_idx = multi_profile_enable_ ? nv_profile_index_ : 0;
+      if (!trt_context->setOptimizationProfileAsync(profile_idx, stream))
+        return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "NvTensorRTRTX EP select an optimization profile for the current context failed (profile_idx=" + std::to_string(profile_idx) + ")");
     }
 
     // Set auxiliary stream if provided by user
@@ -3159,6 +3342,9 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
     }
 
     bool require_io_binding = IsIOBindingRequired(trt_state, ctx);
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] compute_func: fused_node=" << fused_node_name
+                          << " require_io_binding=" << require_io_binding
+                          << " is_dynamic_shape=" << trt_state->is_dynamic_shape;
 
     // Get input and output binding names
     int total_bindings = trt_engine->getNbIOTensors();
@@ -3172,6 +3358,9 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
         output_binding_names.push_back(name);
       }
     }
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] total_bindings=" << total_bindings
+                          << " inputs=" << input_binding_names.size()
+                          << " outputs=" << output_binding_names.size();
 
     /*
      * Set input shapes and bind input buffers
@@ -3185,14 +3374,19 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
 
         size_t input_index = 0;
         const auto iter = input_indexes.find(input_name);
-        if (iter != input_indexes.end()) {
+        bool found_in_indexes = (iter != input_indexes.end());
+        if (found_in_indexes) {
           input_index = iter->second;
         }
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] BindInput[" << i << "] name='" << input_name
+                              << "' found_in_indexes=" << found_in_indexes << " input_index=" << input_index;
 
         auto status = BindContextInput(ctx, trt_engine, trt_context, input_name, input_index, shape_tensor_values, shape_tensor_values_int64, scratch_buffers, alloc, stream, skip_input_binding_allowed);
         if (status != Status::OK()) {
+          LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] BindContextInput FAILED for '" << input_name << "': " << status.ErrorMessage();
           return ORT_MAKE_STATUS(ONNXRUNTIME, EP_FAIL, status.ErrorMessage());
         }
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] BindContextInput OK for '" << input_name << "'";
       }
       trt_state->skip_io_binding_allowed = skip_input_binding_allowed;
     }
@@ -3206,7 +3400,8 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
 
         size_t output_index = 0;
         const auto& index_iter = output_indexes.find(output_name);
-        if (index_iter != output_indexes.end()) {
+        bool found_output = (index_iter != output_indexes.end());
+        if (found_output) {
           output_index = index_iter->second;
         }
 
@@ -3216,36 +3411,55 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromGraph(const GraphViewer& gr
           output_type = type_iter->second;
         }
 
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] BindOutput[" << i << "] name='" << output_name
+                              << "' found_in_indexes=" << found_output << " output_index=" << output_index
+                              << " output_type=" << output_type;
+
         nvinfer1::Dims dims;
         void* data_ptr = nullptr;
 
         Status status = BindContextOutput(ctx, trt_context, output_name, output_index, output_type,
                                           dds_output_allocator_map, scratch_buffers, alloc, dims, data_ptr);
         if (status != Status::OK()) {
+          LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] BindContextOutput FAILED for '" << output_name << "': " << status.ErrorMessage();
           return ORT_MAKE_STATUS(ONNXRUNTIME, EP_FAIL, status.ErrorMessage());
         }
+
+        std::ostringstream dims_str;
+        for (int d = 0; d < dims.nbDims; d++) {
+          if (d > 0) dims_str << "x";
+          dims_str << dims.d[d];
+        }
+        LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] BindContextOutput OK for '" << output_name
+                              << "' data_ptr=" << data_ptr << " dims=[" << dims_str.str() << "]";
 
         trt_state->output_tensors[output_index] = TensorParams{data_ptr, dims};
       }
     }
 
-    // Set execution context memory
-    if (require_io_binding) {
+    // Set execution context memory (only needed for kUSER_MANAGED allocation strategy)
+    // With kSTATIC (used as workaround for TRT-RTX 1.4 getDeviceMemorySizeForProfileV2 bug),
+    // the context manages its own memory and we skip this block.
+    // TODO: Re-enable USER_MANAGED when TRT-RTX fixes the profile index bug
+    if (false && require_io_binding) {
       size_t mem_size = trt_engine->getDeviceMemorySizeV2();
       if (trt_state->is_dynamic_shape) {
         mem_size = trt_context->updateDeviceMemorySizeForShapes();
       }
       if (trt_state->context_memory_size != mem_size) {
-        LOGS_DEFAULT(INFO) << "[NvTensorRTRTX EP] A new context memory was allocated with size " << mem_size;
         trt_state->context_memory = IAllocator::MakeUniquePtrFromOrtAllocator<void>(alloc, mem_size, true /*use_reserve*/);
         trt_state->context_memory_size = mem_size;
         trt_context->setDeviceMemoryV2(trt_state->context_memory.get(), mem_size);
       }
     }
 
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] About to call enqueueV3. stream=" << (void*)stream
+                          << " context_memory_size=" << trt_state->context_memory_size;
     if (!trt_context->enqueueV3(stream)) {
+      LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] enqueueV3 FAILED!";
       return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "NvTensorRTRTX EP execution context enqueue failed.");
     }
+    LOGS_DEFAULT(WARNING) << "[NvTensorRTRTX EP][DIAG] enqueueV3 succeeded";
 
     /*
      * Given that InferenceSession::Run() is guaranteed to be thread-safe meaning multiple threads can call this function concurrently,
@@ -3458,6 +3672,10 @@ Status NvExecutionProvider::CreateNodeComputeInfoFromPrecompiledEngine(const Gra
     if (trt_engine == nullptr) {
       return ORT_MAKE_STATUS(ONNXRUNTIME, EP_FAIL, "No engine is found.");
     }
+
+    // Always set profile 0 on the execution context (same fix as primary compute path)
+    if (!trt_context->setOptimizationProfileAsync(0, stream))
+      return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "NvTensorRTRTX EP (cached path) failed to set optimization profile 0");
 
     bool require_io_binding = IsIOBindingRequired(trt_state, ctx);
 

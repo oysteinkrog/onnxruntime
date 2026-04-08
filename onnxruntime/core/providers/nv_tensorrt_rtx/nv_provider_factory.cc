@@ -2,8 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // Licensed under the MIT License.
 
+#include <cstdio>
 #include <string.h>
 #include <atomic>
+#pragma warning(disable : 4996)
 
 #include "core/providers/shared_library/provider_api.h"
 #include "core/framework/provider_options.h"
@@ -101,7 +103,13 @@ std::unique_ptr<IExecutionProvider> NvProviderFactory::CreateProvider(const OrtS
 }
 
 struct Nv_Provider : Provider {
-  void* GetInfo() override { return &g_info; }
+  void* GetInfo() override {
+    {
+      FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+      if (diagf) { fprintf(diagf, "[DIAG] GetInfo() called!\n"); fclose(diagf); }
+    }
+    return &g_info;
+  }
   std::shared_ptr<IExecutionProviderFactory> CreateExecutionProviderFactory(int device_id) override {
     NvExecutionProviderInfo info;
     info.device_id = device_id;
@@ -135,6 +143,16 @@ struct Nv_Provider : Provider {
                                   const OrtSessionOptions& session_options,
                                   const OrtLogger& logger,
                                   std::unique_ptr<IExecutionProvider>& ep) override {
+    {
+      FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+      if (diagf) {
+        fprintf(diagf, "[DIAG] CreateIExecutionProvider called! options count=%zu\n", provider_options.size());
+        for (const auto& kv : provider_options) {
+          fprintf(diagf, "[DIAG]   option '%s'='%s'\n", kv.first.c_str(), kv.second.c_str());
+        }
+        fclose(diagf);
+      }
+    }
     const ConfigOptions* config_options = &session_options.GetConfigOptions();
 
     std::array<const void*, 2> configs_array = {&provider_options, config_options};
@@ -146,6 +164,13 @@ struct Nv_Provider : Provider {
   }
 
   void Initialize() override {
+    {
+      FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+      if (diagf) {
+        fprintf(diagf, "[DIAG] Initialize() called!\n");
+        fclose(diagf);
+      }
+    }
     InitializeRegistry();
   }
 
@@ -160,6 +185,8 @@ struct Nv_Provider : Provider {
 extern "C" {
 
 ORT_API(onnxruntime::Provider*, GetProvider) {
+  FILE* diagf = fopen("C:\\temp\\trt_rtx_diag.log", "a");
+  if (diagf) { fprintf(diagf, "[DIAG] GetProvider() called!\n"); fclose(diagf); }
   return &onnxruntime::g_provider;
 }
 }
