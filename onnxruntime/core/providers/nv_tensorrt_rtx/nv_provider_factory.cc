@@ -1800,6 +1800,7 @@ struct NvTensorRtRtxEpFactory : OrtEpFactory {
                                        "[NvTensorRTRTX EP] D3D12 CIG context creation not supported on this platform");
 #endif
     } else if (config->graphics_api == ORT_GRAPHICS_API_VULKAN) {
+#if defined(CUDART_VERSION) && CUDART_VERSION >= 13000
       int cig_supported{false};
       if (cudaSuccess != cudaDeviceGetAttribute(&cig_supported, cudaDevAttrVulkanCigSupported, device_id)) {
         return onnxruntime::CreateStatus(ORT_EP_FAIL,
@@ -1834,6 +1835,10 @@ struct NvTensorRtRtxEpFactory : OrtEpFactory {
         error_msg += error_str ? error_str : "unknown error";
         return onnxruntime::CreateStatus(ORT_FAIL, error_msg.c_str());
       }
+#else
+      return onnxruntime::CreateStatus(ORT_NOT_IMPLEMENTED,
+                                       "[NvTensorRTRTX EP] Vulkan CIG context requires the CUDA 13.0 toolkit or newer");
+#endif
     } else {
       return onnxruntime::CreateStatus(ORT_INVALID_ARGUMENT,
                                        "[NvTensorRTRTX EP] Unsupported graphics API for CIG context");
