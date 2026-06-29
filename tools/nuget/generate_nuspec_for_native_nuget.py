@@ -718,6 +718,29 @@ def generate_files(line_list, args):
             + args.target_architecture
             + '\\native" />'
         )
+        # NV TensorRT-RTX EP shim and its TRT-RTX runtime dependencies. The shim is
+        # produced by the build; the runtime DLLs come from the TensorRT-RTX SDK
+        # pointed at by onnxruntime_TENSORRT_RTX_HOME (set during cmake configure).
+        files_list.append(
+            "<file src="
+            + '"'
+            + os.path.join(args.native_build_path, "onnxruntime_providers_nv_tensorrt_rtx.dll")
+            + runtimes_target
+            + args.target_architecture
+            + '\\native" />'
+        )
+        trt_rtx_home = get_env_var("onnxruntime_TENSORRT_RTX_HOME")
+        if trt_rtx_home and os.path.isdir(os.path.join(trt_rtx_home, "bin")):
+            for trt_rtx_dll in os.listdir(os.path.join(trt_rtx_home, "bin")):
+                if trt_rtx_dll.lower().endswith(".dll"):
+                    files_list.append(
+                        "<file src="
+                        + '"'
+                        + os.path.join(trt_rtx_home, "bin", trt_rtx_dll)
+                        + runtimes_target
+                        + args.target_architecture
+                        + '\\native" />'
+                    )
 
     if args.execution_provider == "dnnl":
         files_list.append(
