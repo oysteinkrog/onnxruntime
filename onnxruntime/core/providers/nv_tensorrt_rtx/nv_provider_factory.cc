@@ -93,15 +93,21 @@ std::unique_ptr<IExecutionProvider> NvProviderFactory::CreateProvider(const OrtS
   const ConfigOptions& config_options = session_options.GetConfigOptions();
   const std::unordered_map<std::string, std::string>& config_options_map = config_options.GetConfigOptionsMap();
 
-  // The implementation of the SessionOptionsAppendExecutionProvider C API function automatically adds EP options to
-  // the session option configurations with the key prefix "ep.<lowercase_ep_name>.".
-  // We extract those EP options to create a new "provider options" key/value map.
+  // Seed the provider options from the options already parsed into info_ at factory-creation time.
+  // The device-based (OrtSessionOptionsAppendExecutionProvider_V2) and provider-options factory paths
+  // populate info_ directly and do NOT write "ep.<lowercase_ep_name>." session-config entries, so
+  // re-deriving solely from session config silently drops options such as the optimization-profile
+  // shapes (resulting in "no optimization profile has been defined" at engine build time).
+  ProviderOptions provider_options = NvExecutionProviderInfo::ToProviderOptions(info_);
+
+  // The SessionOptionsAppendExecutionProvider C API path instead writes EP options into session config
+  // with the key prefix "ep.<lowercase_ep_name>.". Overlay those on top so an explicit session-config
+  // value takes precedence over the factory's seed.
   std::string lowercase_ep_name = kNvTensorRTRTXExecutionProvider;
   std::transform(lowercase_ep_name.begin(), lowercase_ep_name.end(), lowercase_ep_name.begin(), [](unsigned char c) {
     return static_cast<char>(std::tolower(c));
   });
 
-  ProviderOptions provider_options;
   std::string key_prefix = "ep.";
   key_prefix += lowercase_ep_name;
   key_prefix += ".";

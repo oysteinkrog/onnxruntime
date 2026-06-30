@@ -71,26 +71,26 @@ endif ()
 
   MESSAGE(STATUS "Looking for ${TRT_RTX_LIB}")
 
-  find_library(TENSORRT_LIBRARY_INFER ${TRT_RTX_LIB}
+  find_library(TENSORRT_RTX_LIBRARY_INFER ${TRT_RTX_LIB}
     HINTS ${TENSORRT_RTX_ROOT}
     PATH_SUFFIXES lib lib64 lib/x64)
 
-  if (NOT TENSORRT_LIBRARY_INFER)
+  if (NOT TENSORRT_RTX_LIBRARY_INFER)
     MESSAGE(STATUS "Can't find ${TRT_RTX_LIB}")
   endif()
 
   if (onnxruntime_USE_TENSORRT_BUILTIN_PARSER)
     MESSAGE(STATUS "Looking for ${RTX_PARSER_LIB}")
 
-    find_library(TENSORRT_LIBRARY_NVONNXPARSER ${RTX_PARSER_LIB}
+    find_library(TENSORRT_RTX_LIBRARY_NVONNXPARSER ${RTX_PARSER_LIB}
       HINTS  ${TENSORRT_RTX_ROOT}
       PATH_SUFFIXES lib lib64 lib/x64)
 
-    if (NOT TENSORRT_LIBRARY_NVONNXPARSER)
+    if (NOT TENSORRT_RTX_LIBRARY_NVONNXPARSER)
       MESSAGE(STATUS "Can't find ${RTX_PARSER_LIB}")
     endif()
 
-    set(TENSORRT_LIBRARY ${TENSORRT_LIBRARY_INFER} ${TENSORRT_LIBRARY_NVONNXPARSER})
+    set(TENSORRT_LIBRARY ${TENSORRT_RTX_LIBRARY_INFER} ${TENSORRT_RTX_LIBRARY_NVONNXPARSER})
     MESSAGE(STATUS "Find TensorRT libs at ${TENSORRT_LIBRARY}")
   else()
     set(ONNX_USE_LITE_PROTO ON)
@@ -122,7 +122,7 @@ endif ()
     endif()
     # Static libraries are just nvonnxparser_static on all platforms
     set(onnxparser_link_libs nvonnxparser_static)
-    set(TENSORRT_LIBRARY ${TENSORRT_LIBRARY_INFER})
+    set(TENSORRT_LIBRARY ${TENSORRT_RTX_LIBRARY_INFER})
     MESSAGE(STATUS "Find TensorRT libs at ${TENSORRT_LIBRARY}")
   endif()
 
