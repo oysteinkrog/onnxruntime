@@ -5,6 +5,7 @@
 // It implements onnxruntime::ProviderHost
 
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 #include "core/common/inlined_containers.h"
@@ -1935,6 +1936,27 @@ bool InitProvidersSharedLibrary() try {
   return false;
 }
 
+namespace {
+// Absolute paths of provider bridge libraries registered through RegisterExecutionProviderLibrary,
+// keyed by file name. See SetRegisteredProviderLibraryPath.
+std::mutex s_registered_provider_paths_mutex;
+std::unordered_map<PathString, PathString> s_registered_provider_paths;
+
+std::optional<PathString> GetRegisteredProviderLibraryPath(const ORTCHAR_T* filename) {
+  std::lock_guard<std::mutex> lock{s_registered_provider_paths_mutex};
+  auto it = s_registered_provider_paths.find(filename);
+  if (it == s_registered_provider_paths.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+}  // namespace
+
+void SetRegisteredProviderLibraryPath(const std::filesystem::path& absolute_path) {
+  std::lock_guard<std::mutex> lock{s_registered_provider_paths_mutex};
+  s_registered_provider_paths[absolute_path.filename().native()] = absolute_path.native();
+}
+
 ProviderLibrary::ProviderLibrary(const ORTCHAR_T* filename, bool unload, ProviderLibraryPathType pathType)
     : filename_{filename}, unload_{unload}, absolute_{pathType == ProviderLibraryPathType::Absolute} {
 }
@@ -1959,6 +1981,10 @@ Status ProviderLibrary::Load() {
           return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "An absolute path must be specified.");
         }
         ORT_RETURN_IF_ERROR(Env::Default().LoadDynamicLibrary(filename_, false, &handle_));
+      } else if (auto registered_path = GetRegisteredProviderLibraryPath(filename_)) {
+        // The application registered this provider library by absolute path, so it may not sit
+        // next to onnxruntime. Load the same file the registration loaded.
+        ORT_RETURN_IF_ERROR(Env::Default().LoadDynamicLibrary(*registered_path, false, &handle_));
       } else {
         auto full_path = Env::Default().GetRuntimePath() + filename_;
         ORT_RETURN_IF_ERROR(Env::Default().LoadDynamicLibrary(full_path, false, &handle_));

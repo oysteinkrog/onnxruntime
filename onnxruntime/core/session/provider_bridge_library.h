@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <mutex>
 #include "core/session/onnxruntime_c_api.h"
 
@@ -33,4 +34,10 @@ struct ProviderLibrary {
 
   ORT_DISALLOW_COPY_AND_ASSIGNMENT(ProviderLibrary);
 };
+
+// Records the absolute path a provider bridge library was registered from through
+// RegisterExecutionProviderLibrary. A default (non-absolute) ProviderLibrary whose file name matches
+// then loads that path instead of <onnxruntime folder>\<file name>. This lets the built-in loaders,
+// such as the CUDA one the TensorRT EP uses, find a provider library that is installed elsewhere.
+void SetRegisteredProviderLibraryPath(const std::filesystem::path& absolute_path);
 }  // namespace onnxruntime

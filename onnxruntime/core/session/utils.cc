@@ -891,6 +891,10 @@ Status LoadPluginOrProviderBridge(const std::string& registration_name,
                                                                                 resolved_library_path);
     ORT_RETURN_IF_ERROR(ep_library_provider_bridge->Load());
     internal_factories = ep_library_provider_bridge->GetInternalFactories();
+
+    // Let the built-in loader for this library (for example the CUDA one the TensorRT EP uses for its
+    // allocators) load the registered file instead of looking next to onnxruntime.
+    SetRegisteredProviderLibraryPath(resolved_library_path);
     ep_library = std::move(ep_library_provider_bridge);
   } else {
     ep_library = std::move(ep_library_plugin);
